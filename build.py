@@ -1,8 +1,7 @@
 from collections import deque
 from copy import deepcopy
-from pyautogui import *
+import pyautogui, sys
 import time
-import win32api, win32con
 import keyboard
 import math
 import numpy as np
@@ -13,7 +12,10 @@ import MCcontroller as MC
 calibrate = MC.calibrate
 centerOnBlock = MC.centerOnBlock
 fillSpot = '1' #the spot in hotbar that will be used to fill in blocks
-
+def downClick(button = 'right'):
+    pyautogui.mouseDown(button)
+def upClick(button = 'right'):
+    pyautogui.mouseUp(button)
 
 def buildPlatform(x,y,platform): #builds a platform with a 2D array corresposding to the hotbar keys
     centerOnBlock()
@@ -29,10 +31,10 @@ def buildPlatform(x,y,platform): #builds a platform with a 2D array corresposdin
                 time.sleep(1)
                 keyboard.release('s')
                 keyboard.press(platform[row][col+1])
-                win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTDOWN,0,0)
+                downClick()
 
                 keyboard.release(platform[row][col+1])
-                win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTUP,0,0)
+                upClick()
         else:
             for col in reversed(range(y-1)):
                 keyboard.press('s')
@@ -40,10 +42,9 @@ def buildPlatform(x,y,platform): #builds a platform with a 2D array corresposdin
                 keyboard.release('s')
 
                 keyboard.press(platform[row][col])
-                win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTDOWN,0,0)
-
+                downClick()
                 keyboard.release(platform[row][col])
-                win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTUP,0,0)
+                upClick()
         time.sleep(1)
         keyboard.release('alt')
         centerOnBlock()
@@ -57,10 +58,10 @@ def buildPlatform(x,y,platform): #builds a platform with a 2D array corresposdin
                 time.sleep(1)
                 keyboard.release('s')
                 keyboard.press(platform[row+1][y-1])
-                win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTDOWN,0,0)
+                downClick()
 
                 keyboard.release(platform[row+1][y-1])
-                win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTUP,0,0)
+                upClick()
                 r = r - 90
                 time.sleep(1)
                 keyboard.release('alt')
@@ -75,9 +76,9 @@ def buildPlatform(x,y,platform): #builds a platform with a 2D array corresposdin
                 time.sleep(1)
                 keyboard.release('s')
                 keyboard.press(platform[row+1][0])
-                win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTDOWN,0,0)
+                downClick()
                 keyboard.release(platform[row+1][0])
-                win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTUP,0,0)
+                upClick()
                 r = r + 90
                 time.sleep(1)
                 keyboard.release('alt')
@@ -101,7 +102,7 @@ def buildPlatform(x,y,platform): #builds a platform with a 2D array corresposdin
     keyboard.release('alt')
 
     centerOnBlock()
-def buildShape(path, platform): #builds the shape of the 2D array with as little fill blocks as possible
+def buildShape(path, platform, BreakTemp = False): #builds the shape of the 2D array with as little fill blocks as possible
     x = 0
     y = 0
     prev = None
@@ -123,24 +124,24 @@ def buildShape(path, platform): #builds the shape of the 2D array with as little
         time.sleep(.7)
         keyboard.release('s')
         keyboard.press(platform[path[i].x][path[i].y])
-        win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTDOWN,0,0)
+        downClick()
 
         time.sleep(.05)
 
         keyboard.release(platform[path[i].x][path[i].y])
-        win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTUP,0,0)
+        upClick()
         
-        win32api.mouse_event(win32con.MOUSEEVENTF_MIDDLEDOWN,0,0)
-        win32api.mouse_event(win32con.MOUSEEVENTF_MIDDLEUP,0,0)
+        downClick("middle")
+        upClick("middle")
 
-        #__________________________________________
-        if prev == fillSpot:
+        #Breaks the temporary blocks
+        if (prev == fillSpot) & BreakTemp:
             calibrate(J = 70)
             keyboard.press('3')
             time.sleep(.1)
-            win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN,0,0)
+            downClick("left")
             time.sleep(.1)
-            win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP,0,0)
+            upClick("left")
             keyboard.press('3')
             
         prev = platform[path[i].x][path[i].y]
@@ -191,9 +192,9 @@ def findPath(grid, x=0, y=0,nextX = None, nextY = None, visited = None): #finds 
 
             #time.sleep(4)
             getPath(current, path)
-            getPath(current, p)
             #print(path)
             '''
+            if len(path) > 4: do the split
             p1 = findPath(grid = deepcopy(grid),x = i, y = j, nextX=-1,nextY=0, visited=deepcopy(visited))
             p2 = findPath(grid = deepcopy(grid),x = i, y = j, nextX=0, nextY=-1, visited=deepcopy(visited))
             p3 = findPath(grid = deepcopy(grid),x = i, y = j, nextX=1, nextY=0, visited=deepcopy(visited))
@@ -294,17 +295,54 @@ def makeTorus(size, radius, r2): #TODO make a tourus in a 3D array
     return AA  
 
 
+#Driver code
+to = time.time() #to time how long the builds take
 
-to = time.time()
-np.set_printoptions(threshold=sys.maxsize)
-R3 = makeSphere(10,4)
-#R3 = makeTorus(25,5,10)
+R3 = makeSphere(10,4) #makes the shape that we want to build
 path = []
-for i in R3[8]:
-    #for line in i:
-    print (' '.join(i))
-#path = findPath(deepcopy(R3[8]))
+blocks = 0
+time.sleep(15) #time to get game ready
 
+for layer in R3: #Loop through each layer of 3D array and build it
+
+    x = 0
+    y = 0
+    try:
+        if(path != []):
+            x = path[-1].x
+            y = path[-1].y
+    except:
+        print("sorry")
+        
+    #Jumps to next level to start building
+    calibrate(90,90)
+    keyboard.press(layer[x][y])
+    downClick()
+    keyboard.press('space')
+    time.sleep(0.5)
+    keyboard.release('space')
+    upClick()
+    keyboard.release(layer[x][y])
+    
+    #finds the path and builds it
+    c1 = deepcopy(layer)
+    #parallel processing could be done here with path
+    path = findPath(c1,x,y+1)
+    #print("The path is : ", path)
+    #print("+++++++++++++++++++++++++++++++++++++++++++++")
+    centerOnBlock()
+    buildShape(path, layer, BreakTemp=True)
+    blocks += len(path)
+
+#print useful information
+timeTaken = time.time() - to
+print()
+print("JOB COMPLETED")
+print("This took: ", timeTaken , " seconds.")
+print("There were ", blocks, " blocks placed.")
+print("This ran at ", timeTaken/blocks, " blocks per second.")
+
+'''
 path = findPath(deepcopy([["1","1","1","1","1","2","2"],
                           ["1","1","1","1","1","2","2"],
                           ["1","1","1","1","1","2","2"],
@@ -313,62 +351,11 @@ path = findPath(deepcopy([["1","1","1","1","1","2","2"],
                           ["1","1","1","1","1","2","2"],
                           ["2","2","2","2","2","2","2"]]))
 
-print("path = ", path)
-#centerOnBlock()
-#buildShape(path, deepcopy(R3[8]))
-'''
-time.sleep(15)
-for i in R3:
+for i in R3[8]:
+    #for line in i:
+    print (' '.join(i))
+path = findPath(deepcopy(R3[8]))
 
-    x = 0
-    y = 0
-    try:
-        if(path != []):
-            x = path[-1].x
-            y = path[-1].y
-            print(x,y, " is the last item in the last path +++++++++++++++++++++++++")
-    except:
-        print("sorry")
-    
-    calibrate(90,90)
-    keyboard.press(i[x][y])
-    win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTDOWN,0,0)
-    keyboard.press('space')
-    time.sleep(0.5)
-    keyboard.release('space')
-    win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTUP,0,0)
-    keyboard.release(i[x][y])
-    layer = i
-    c1 = deepcopy(layer)
-    #parallel 
-    path = findPath(c1,x,y+1)
-    print(path)
-    print("+++++++++++++++++++++++++++++++++++++++++++++")
-    centerOnBlock()
-    buildShape(path, layer)
-
-#print("The path is : ", path)
-
-'''
-print("This took: ", time.time() - to, " seconds")
-
-'''
-for i in R3:
-
-    buildPlatform(11,11, i)
-    calibrate(90,80)
-    win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTDOWN,0,0)
-    keyboard.press('space')
-    time.sleep(0.5)
-    keyboard.release('space')
-    win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTUP,0,0)
-'''
-'''
-keyboard.press('alt')
-keyboard.press('s')
-win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTDOWN,0,0)
-time.sleep(10) #This pauses the script for 0.1 seconds
-win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP,0,0)
-keyboard.release('s')
-keyboard.release('alt')
+centerOnBlock()
+buildShape(path, deepcopy(R3[8]))
 '''
